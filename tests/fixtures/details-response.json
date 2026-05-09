@@ -1,0 +1,33 @@
+{
+  "rentalByListingId": {
+    "id": "9999999",
+    "description": "Bright 2BR with central AC and dishwasher.",
+    "availableAt": "2026-08-01",
+    "interestingChangeAt": "2026-04-15T00:00:00Z",
+    "createdAt": "2026-04-15T00:00:00Z",
+    "propertyDetails": {
+      "bedroomCount": 2,
+      "fullBathroomCount": 1,
+      "livingAreaSize": 800,
+      "address": { "street": "123 Test St", "unit": "2A", "city": "Brooklyn" },
+      "amenities": { "list": ["DISHWASHER", "CENTRAL_AC"], "doormanTypes": [], "sharedOutdoorSpaceTypes": [] },
+      "features": { "list": ["HARDWOOD_FLOORS"] },
+      "floor": 2
+    },
+    "pricing": {
+      "price": 4200,
+      "netEffectivePrice": 4000,
+      "monthsFree": 1,
+      "noFee": true,
+      "leaseTermMonths": 12
+    }
+  },
+  "buildingByRentalListingId": {
+    "policies": { "petPolicy": { "catsAllowed": true, "dogsAllowed": false } },
+    "nearby": {
+      "transitStations": [
+        { "name": "Bedford Av", "distance": 0.2, "routes": ["L"] }
+      ]
+    }
+  }
+}

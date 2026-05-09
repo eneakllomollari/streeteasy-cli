@@ -1,0 +1,54 @@
+{
+  "name": "streeteasy-cli",
+  "version": "0.1.0",
+  "description": "CLI for searching StreetEasy rental listings in NYC.",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eneakllomollari/streeteasy-cli.git"
+  },
+  "homepage": "https://github.com/eneakllomollari/streeteasy-cli#readme",
+  "bugs": {
+    "url": "https://github.com/eneakllomollari/streeteasy-cli/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@10.0.0",
+  "bin": {
+    "streeteasy": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "oxlint",
+    "knip": "knip",
+    "prepare": "husky",
+    "preflight": "pnpm lint && pnpm knip && pnpm typecheck && pnpm test"
+  },
+  "dependencies": {
+    "@graphql-typed-document-node/core": "^3.2.0",
+    "commander": "^12.1.0",
+    "graphql": "^16.9.0",
+    "https-proxy-agent": "^7.0.6",
+    "undici": "7",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "husky": "^9.1.7",
+    "knip": "^6.11.0",
+    "oxlint": "^0.15.0",
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
