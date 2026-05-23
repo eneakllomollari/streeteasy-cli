@@ -42,12 +42,13 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
-    "lefthook": "^1.11.13",
     "knip": "^6.11.0",
+    "lefthook": "^1.11.13",
     "oxlint": "^0.15.0",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "vite": "^8.0.14",
+    "vitest": "^4.1.7"
   }
 }
