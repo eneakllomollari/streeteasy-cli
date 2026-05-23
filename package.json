@@ -30,20 +30,19 @@
     "test:watch": "vitest",
     "lint": "oxlint",
     "knip": "knip",
-    "prepare": "husky",
+    "prepare": "lefthook install",
     "preflight": "pnpm lint && pnpm knip && pnpm typecheck && pnpm test"
   },
   "dependencies": {
     "@graphql-typed-document-node/core": "^3.2.0",
     "commander": "^12.1.0",
     "graphql": "^16.9.0",
-    "https-proxy-agent": "^7.0.6",
     "undici": "7",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
-    "husky": "^9.1.7",
+    "lefthook": "^1.11.13",
     "knip": "^6.11.0",
     "oxlint": "^0.15.0",
     "tsup": "^8.3.5",

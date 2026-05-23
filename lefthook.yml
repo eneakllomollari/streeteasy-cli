@@ -1,0 +1,11 @@
+pre-commit:
+  parallel: true
+  commands:
+    lint:
+      run: pnpm oxlint --max-warnings=0
+    knip:
+      run: pnpm knip
+    typecheck:
+      run: pnpm typecheck
+    test:
+      run: pnpm test

@@ -164,3 +164,6 @@ REQUIREMENTS.md
 
 # Internal design artifacts and build journals
 docs/superpowers/
+
+# Lefthook local overrides
+lefthook-local.yml

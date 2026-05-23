@@ -1,4 +1,0 @@
-#!/usr/bin/env sh
-pnpm oxlint --max-warnings=0
-pnpm knip
-pnpm typecheck
