@@ -1,4 +1,5 @@
 import { defineConfig } from 'tsup';
+import pkg from './package.json';
 
 export default defineConfig({
   entry: ['src/cli.ts'],
@@ -22,6 +23,9 @@ const require = __createRequire(import.meta.url);`,
   splitting: false,
   sourcemap: false,
   dts: false,
+  define: {
+    'process.env.CLI_VERSION': JSON.stringify(pkg.version),
+  },
   // Bundle the runtime npm deps into the single file so the released
   // artifact runs without a node_modules sibling. Node built-ins
   // (events, fs, http, etc.) stay external by default.

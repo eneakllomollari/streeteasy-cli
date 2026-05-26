@@ -29,7 +29,7 @@ const program = new Command();
 program
   .name('streeteasy')
   .description('StreetEasy rental search CLI')
-  .version('0.2.0')
+  .version(process.env.CLI_VERSION ?? '0.0.0-dev')
   .exitOverride();
 
 interface ProxyFlags {
