@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { StreetEasyClient } from '../src/client.js';
+import {
+  buildSingleProxyHandle,
+  buildListProxyHandle,
+} from '../src/proxy.js';
 
 describe('StreetEasyClient', () => {
   beforeEach(() => {
@@ -35,7 +39,7 @@ describe('StreetEasyClient', () => {
   });
 
   it('getRentalListingDetails posts the listingID variable', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(
         JSON.stringify({
           data: { rentalByListingId: { id: '123' }, buildingByRentalListingId: {} },
@@ -47,7 +51,7 @@ describe('StreetEasyClient', () => {
     const client = new StreetEasyClient();
     await client.getRentalListingDetails('123');
 
-    const init = fetchSpy.mock.calls[0]![1] as RequestInit;
+    const init = vi.mocked(fetch).mock.calls[0]![1] as RequestInit;
     const body = JSON.parse(init.body as string);
     expect(body.variables.listingID).toBe('123');
   });
@@ -63,58 +67,135 @@ describe('StreetEasyClient', () => {
     );
   });
 
-  it('rotates proxy session on 403 and retries once', async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(new Response('forbidden', { status: 403 }))
-      .mockResolvedValueOnce(
-        new Response(
+  describe('single-URL proxy rotation', () => {
+    it('rotates proxy session on 403 and retries once', async () => {
+      const fetchSpy = vi
+        .spyOn(globalThis, 'fetch')
+        .mockResolvedValueOnce(new Response('forbidden', { status: 403 }))
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              data: { rentalByListingId: { id: '123' }, buildingByRentalListingId: {} },
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          ),
+        );
+
+      const handle = buildSingleProxyHandle('http://{{rand}}@host:1234');
+      const client = new StreetEasyClient({ handle });
+
+      const result = await client.getRentalListingDetails('123');
+      expect(result.rentalByListingId.id).toBe('123');
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not retry beyond once on persistent 403', async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response('forbidden', { status: 403 }),
+      );
+
+      const handle = buildSingleProxyHandle('http://{{rand}}@host:1234');
+      const client = new StreetEasyClient({ handle });
+
+      await expect(client.getRentalListingDetails('123')).rejects.toThrow(
+        /StreetEasy GraphQL Error.*403/,
+      );
+    });
+
+    it('emits "rotation exhausted" on stderr after retries fail', async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response('forbidden', { status: 403 }),
+      );
+      const stderr = vi
+        .spyOn(process.stderr, 'write')
+        .mockImplementation(() => true);
+
+      const handle = buildSingleProxyHandle('http://{{rand}}@host:1234');
+      const client = new StreetEasyClient({ handle });
+
+      await expect(client.getRentalListingDetails('123')).rejects.toThrow(
+        /rotation exhausted/,
+      );
+      const stderrText = stderr.mock.calls.map((c) => c[0]).join('');
+      expect(stderrText).toMatch(/rotation exhausted/);
+    });
+  });
+
+  describe('list-based parallel proxy racing', () => {
+    it('succeeds when at least one proxy in the batch works', async () => {
+      let callCount = 0;
+      vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+        callCount++;
+        if (callCount < 3) {
+          return new Response('forbidden', { status: 403 });
+        }
+        return new Response(
           JSON.stringify({
             data: { rentalByListingId: { id: '123' }, buildingByRentalListingId: {} },
           }),
           { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      });
+
+      const handle = buildListProxyHandle(
+        ['http://a:1', 'http://b:2', 'http://c:3'],
+      );
+      const client = new StreetEasyClient({ handle });
+
+      const result = await client.getRentalListingDetails('123');
+      expect(result.rentalByListingId.id).toBe('123');
+    });
+
+    it('throws when all proxies in all batches fail', async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response('forbidden', { status: 403 }),
+      );
+      vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+      const handle = buildListProxyHandle(
+        ['http://a:1', 'http://b:2', 'http://c:3'],
+      );
+      const client = new StreetEasyClient({ handle });
+
+      await expect(client.getRentalListingDetails('123')).rejects.toThrow(
+        /All proxies exhausted/,
+      );
+    });
+
+    it('throws when all proxies have connection errors', async () => {
+      vi.spyOn(globalThis, 'fetch').mockRejectedValue(
+        new TypeError('fetch failed'),
+      );
+      vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+
+      const handle = buildListProxyHandle(['http://a:1', 'http://b:2']);
+      const client = new StreetEasyClient({ handle });
+
+      await expect(client.getRentalListingDetails('123')).rejects.toThrow(
+        /All proxies exhausted/,
+      );
+    });
+
+    it('surfaces GraphQL errors immediately instead of exhausting all batches', async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            data: null,
+            errors: [{ message: 'Unknown field "bogus"' }],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
         ),
       );
+      vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
 
-    const client = new StreetEasyClient({
-      proxy: { enabled: true, url: 'http://{{rand}}@host:1234' },
+      const handle = buildListProxyHandle([
+        'http://a:1', 'http://b:2', 'http://c:3',
+      ]);
+      const client = new StreetEasyClient({ handle });
+
+      await expect(client.getRentalListingDetails('123')).rejects.toThrow(
+        /StreetEasy GraphQL Error.*Unknown field/,
+      );
     });
-
-    const result = await client.getRentalListingDetails('123');
-    expect(result.rentalByListingId.id).toBe('123');
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
-  });
-
-  it('does not retry beyond once on persistent 403 — surfaces error', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response('forbidden', { status: 403 }),
-    );
-
-    const client = new StreetEasyClient({
-      proxy: { enabled: true, url: 'http://{{rand}}@host:1234' },
-    });
-
-    await expect(client.getRentalListingDetails('123')).rejects.toThrow(
-      /StreetEasy GraphQL Error.*403/,
-    );
-  });
-
-  it('emits "rotation exhausted" on stderr after second 403 fails', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response('forbidden', { status: 403 }),
-    );
-    const stderr = vi
-      .spyOn(process.stderr, 'write')
-      .mockImplementation(() => true);
-
-    const client = new StreetEasyClient({
-      proxy: { enabled: true, url: 'http://{{rand}}@host:1234' },
-    });
-
-    await expect(client.getRentalListingDetails('123')).rejects.toThrow(
-      /rotation exhausted/,
-    );
-    const stderrText = stderr.mock.calls.map((c) => c[0]).join('');
-    expect(stderrText).toMatch(/rotation exhausted/);
   });
 });
