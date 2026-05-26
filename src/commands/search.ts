@@ -77,7 +77,7 @@ export async function runSearch(
 
   while (true) {
     const res = await client.searchRentals({ ...baseInput, page });
-    totalCount = res.searchRentals.totalCount;
+    totalCount = Math.max(totalCount, res.searchRentals.totalCount);
     allEdges.push(...res.searchRentals.edges);
     if (
       !opts.allPages ||

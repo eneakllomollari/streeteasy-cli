@@ -1,4 +1,3 @@
-import { HttpsProxyAgent } from 'https-proxy-agent';
 import { ProxyAgent } from 'undici';
 import { randomBytes } from 'node:crypto';
 
@@ -7,12 +6,10 @@ export interface ResolvedProxy {
   url: string | undefined;
 }
 
-// Dispatcher typed as unknown to sidestep cross-version conflicts between
-// undici 8 and the older undici-types bundled with @types/node.
 export interface AgentHandle {
-  agent: HttpsProxyAgent<string> | undefined;
   dispatcher: unknown;
-  rotate: () => void;
+  rotate: () => boolean;
+  proxyUrls?: string[];
 }
 
 const ALPHABET =
@@ -31,26 +28,52 @@ export function substituteRand(url: string, session: string): string {
   return url.split('{{rand}}').join(session);
 }
 
-export function buildAgent(cfg: ResolvedProxy): AgentHandle {
-  const handle: AgentHandle = {
-    agent: undefined,
-    dispatcher: undefined,
-    rotate: () => {},
-  };
+export function buildDisabledHandle(): AgentHandle {
+  return { dispatcher: undefined, rotate: () => false };
+}
 
-  if (!cfg.enabled || !cfg.url) {
-    return handle;
-  }
+export function buildSingleProxyHandle(url: string): AgentHandle {
+  const template = url;
+  let rotated = false;
+  const handle: AgentHandle = { dispatcher: undefined, rotate: () => false };
 
-  const template = cfg.url;
   const make = (): void => {
     const session = generateRandSession();
-    const url = substituteRand(template, session);
-    handle.agent = new HttpsProxyAgent(url);
-    handle.dispatcher = new ProxyAgent(url);
+    const resolved = substituteRand(template, session);
+    handle.dispatcher = new ProxyAgent(resolved);
   };
 
   make();
-  handle.rotate = make;
+
+  handle.rotate = () => {
+    if (rotated) return false;
+    rotated = true;
+    make();
+    return true;
+  };
+
+  return handle;
+}
+
+export function buildListProxyHandle(proxyUrls: string[]): AgentHandle {
+  let index = 0;
+  const handle: AgentHandle = { dispatcher: undefined, rotate: () => false };
+
+  if (proxyUrls.length === 0) {
+    return handle;
+  }
+
+  handle.dispatcher = new ProxyAgent(proxyUrls[0]!);
+  handle.proxyUrls = proxyUrls;
+
+  handle.rotate = () => {
+    index += 1;
+    if (index >= proxyUrls.length) {
+      return false;
+    }
+    handle.dispatcher = new ProxyAgent(proxyUrls[index]!);
+    return true;
+  };
+
   return handle;
 }

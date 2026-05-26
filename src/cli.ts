@@ -1,6 +1,13 @@
 import { Command, CommanderError, Option } from 'commander';
 import { StreetEasyClient } from './client.js';
-import { resolveProxy } from './config.js';
+import { resolveProxy, type ProxyOverrides } from './config.js';
+import {
+  buildDisabledHandle,
+  buildSingleProxyHandle,
+  buildListProxyHandle,
+  type AgentHandle,
+} from './proxy.js';
+import { getProxyList } from './proxy-list.js';
 import {
   parseSearchInput,
   runSearch,
@@ -8,6 +15,14 @@ import {
 } from './commands/search.js';
 import { runDetails, type DetailsOptions } from './commands/details.js';
 import { runConfig } from './commands/config.js';
+
+async function buildProxyHandle(overrides: ProxyOverrides): Promise<AgentHandle> {
+  const resolved = resolveProxy(overrides);
+  if (!resolved.enabled) return buildDisabledHandle();
+  if (resolved.url) return buildSingleProxyHandle(resolved.url);
+  const urls = await getProxyList();
+  return buildListProxyHandle(urls);
+}
 
 const program = new Command();
 
@@ -73,11 +88,11 @@ const buildSearchCommand = (verb: 'search' | 'list'): Command =>
         process.exit(2);
       }
 
-      const proxy = resolveProxy({
+      const handle = await buildProxyHandle({
         proxyUrl: opts.proxyUrl,
         noProxy: opts.proxy === false,
       });
-      const client = new StreetEasyClient({ proxy });
+      const client = new StreetEasyClient({ handle });
       try {
         await runSearch(opts, client);
       } catch (err) {
@@ -108,11 +123,11 @@ program.addCommand(
         cacheDir?: string;
       },
     ) => {
-      const proxy = resolveProxy({
+      const handle = await buildProxyHandle({
         proxyUrl: opts.proxyUrl,
         noProxy: opts.proxy === false,
       });
-      const client = new StreetEasyClient({ proxy });
+      const client = new StreetEasyClient({ handle });
       const json: DetailsOptions['json'] = opts.summary
         ? 'summary'
         : opts.json

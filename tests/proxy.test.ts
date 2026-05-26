@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   generateRandSession,
   substituteRand,
-  buildAgent,
-  type ResolvedProxy,
+  buildDisabledHandle,
+  buildSingleProxyHandle,
+  buildListProxyHandle,
 } from '../src/proxy.js';
 
 describe('generateRandSession', () => {
@@ -39,43 +40,60 @@ describe('substituteRand', () => {
   });
 });
 
-describe('buildAgent', () => {
-  it('returns undefined agent when proxy is disabled', () => {
-    const cfg: ResolvedProxy = { enabled: false, url: undefined };
-    const result = buildAgent(cfg);
-    expect(result.agent).toBeUndefined();
+describe('buildDisabledHandle', () => {
+  it('returns undefined dispatcher and rotate returns false', () => {
+    const handle = buildDisabledHandle();
+    expect(handle.dispatcher).toBeUndefined();
+    expect(handle.rotate()).toBe(false);
+  });
+});
+
+describe('buildSingleProxyHandle', () => {
+  it('returns a handle with a dispatcher', () => {
+    const handle = buildSingleProxyHandle('http://user:pass@host:1234');
+    expect(handle.dispatcher).toBeDefined();
   });
 
-  it('returns an agent when proxy is enabled with a URL', () => {
-    const cfg: ResolvedProxy = {
-      enabled: true,
-      url: 'http://user:pass@host:1234',
-    };
-    const result = buildAgent(cfg);
-    expect(result.agent).toBeDefined();
+  it('rotate() returns true on first call and false on second', () => {
+    const handle = buildSingleProxyHandle('http://user:pass@host:1234');
+    const firstDispatcher = handle.dispatcher;
+    expect(handle.rotate()).toBe(true);
+    expect(handle.dispatcher).not.toBe(firstDispatcher);
+    expect(handle.rotate()).toBe(false);
   });
 
-  it('rotate() produces a new agent, new dispatcher, and new substituted URL when {{rand}} is present', () => {
-    const cfg: ResolvedProxy = {
-      enabled: true,
-      url: 'http://{{rand}}@host:1234',
-    };
-    const result = buildAgent(cfg);
-    const firstAgent = result.agent;
-    const firstDispatcher = result.dispatcher;
-    expect(firstAgent).toBeDefined();
-    expect(firstDispatcher).toBeDefined();
-    result.rotate();
-    expect(result.agent).toBeDefined();
-    expect(result.agent).not.toBe(firstAgent);
-    expect(result.dispatcher).toBeDefined();
-    expect(result.dispatcher).not.toBe(firstDispatcher);
+  it('substitutes {{rand}} into the URL', () => {
+    const handle = buildSingleProxyHandle('http://{{rand}}@host:1234');
+    expect(handle.dispatcher).toBeDefined();
+    const firstDispatcher = handle.dispatcher;
+    handle.rotate();
+    expect(handle.dispatcher).not.toBe(firstDispatcher);
+  });
+});
+
+describe('buildListProxyHandle', () => {
+  it('sets initial dispatcher from first URL', () => {
+    const handle = buildListProxyHandle(
+      ['http://a:1', 'http://b:2', 'http://c:3'],
+    );
+    expect(handle.dispatcher).toBeDefined();
   });
 
-  it('rotate() is a no-op when proxy is disabled', () => {
-    const cfg: ResolvedProxy = { enabled: false, url: undefined };
-    const result = buildAgent(cfg);
-    result.rotate();
-    expect(result.agent).toBeUndefined();
+  it('rotates through all proxies in the list', () => {
+    const handle = buildListProxyHandle(
+      ['http://a:1', 'http://b:2', 'http://c:3', 'http://d:4'],
+    );
+    const first = handle.dispatcher;
+    expect(handle.rotate()).toBe(true);
+    expect(handle.dispatcher).not.toBe(first);
+    expect(handle.rotate()).toBe(true);
+    expect(handle.rotate()).toBe(true);
+    expect(handle.rotate()).toBe(false);
+  });
+
+  it('returns disabled handle for empty list', () => {
+    const handle = buildListProxyHandle([]);
+    expect(handle.dispatcher).toBeUndefined();
+    expect(handle.rotate()).toBe(false);
   });
 });
