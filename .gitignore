@@ -167,3 +167,6 @@ docs/superpowers/
 
 # Lefthook local overrides
 lefthook-local.yml
+
+# Personal apartment-search criteria for the streeteasy-search skill
+skills/streeteasy-search/criteria.md
